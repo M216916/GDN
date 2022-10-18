@@ -202,28 +202,7 @@ class Main():
             plt.legend()
             plt.show()
             fig.savefig(folder_path + "img_" + str(i) + ".png")
-        '''
-        test_labels = np_test_result[2, :, 0].tolist()                                             # len : 2044  0/1 のみで構成
-    
-        test_scores, normal_scores = get_full_err_scores(test_result, val_result)                  # test_scores   : (27, 2044)
-                                                                                                   # normal_scores : (27,  312)
 
-        top1_best_info = get_best_performance_data(test_scores, test_labels, topk=1)               # len : 5
-        top1_val_info = get_val_performance_data(test_scores, normal_scores, test_labels, topk=1)  # len : 5
-
-
-        print('=========================** Result **============================\n')
-
-        info = None
-        if self.env_config['report'] == 'best':
-            info = top1_best_info
-        elif self.env_config['report'] == 'val':   # ×
-            info = top1_val_info                   # ×
-
-        print(f'F1 score: {info[0]}')
-        print(f'precision: {info[1]}')
-        print(f'recall: {info[2]}\n')
-        '''
 
     def get_save_path(self, feature_name=''):
 

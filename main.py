@@ -152,8 +152,8 @@ class Main():
         self.model.load_state_dict(torch.load(model_save_path))             # ./pretrained/make/best_****.pt から最新モデルを読み込み
         best_model = self.model.to(self.device)                             # best_model
 
-        _, self.test_result = test(best_model, self.test_dataloader)        # _:スカラー ／ self.test_result:(3,2044,27)
-        _, self.val_result = test(best_model, self.val_dataloader)          # _:スカラー ／ self.test_result:(3, 312,27)
+        _, self.test_result, con_list = test(best_model, self.test_dataloader)        # _:スカラー ／ self.test_result:(3,2044,27)
+        _, self.val_result, __ = test(best_model, self.val_dataloader)          # _:スカラー ／ self.test_result:(3, 312,27)
 
         self.get_score(self.test_result, self.val_result)                   # None
 

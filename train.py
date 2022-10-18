@@ -91,7 +91,7 @@ def train(model = None, save_path = '', config={},  train_dataloader=None, val_d
         # use val dataset to judge
         if val_dataloader is not None:
 
-            val_loss, val_result = test(model, val_dataloader)   # val_loss を出力
+            val_loss, val_result, _ = test(model, val_dataloader)   # val_loss を出力
 
             if val_loss < min_loss:                              # val_loss の最小値が更新されなければ stop_improve_count +1 
                 torch.save(model.state_dict(), save_path)        #  → early_stop_win に到達したら break

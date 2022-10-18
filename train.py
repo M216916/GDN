@@ -68,8 +68,9 @@ def train(model = None, save_path = '', config={},  train_dataloader=None, val_d
                                                              # labels     : torch.Size[32, 27]
                                                              # edge_index : torch.Size[32, 2, 702]
             optimizer.zero_grad()
-            out = model(x, edge_index).float().to(device)    # out        : torch.Size[32, 27]
-            loss = loss_func(out, labels)                    # MSE loss
+            out_1, out_2 = model(x, edge_index)              # out        : torch.Size[32, 27]
+            out_2= out_2.float().to(device)
+            loss = loss_func(out_2, labels)                  # MSE loss
             
             loss.backward()
             optimizer.step()

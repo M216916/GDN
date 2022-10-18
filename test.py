@@ -47,9 +47,9 @@ def test(model, dataloader):
                                                                         # labels     : torch.Size[32]
                                                                         # edge_index : torch.Size[32, 2, 702]        
         with torch.no_grad():
-            predicted = model(x, edge_index).float().to(device)
+            out_1, predicted = model(x, edge_index)
+            predicted = predicted.float().to(device)
                                                                         # predicted  : torch.Size[32, 27]
-            
             loss = loss_func(predicted, y)
             
             labels = labels.unsqueeze(1).repeat(1, predicted.shape[1])  # torch.Size[32, 27]

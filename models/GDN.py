@@ -170,10 +170,10 @@ class GDN(nn.Module):
         out = out.permute(0,2,1)                            # torch.Size[32, 64, 27]     # 要素入れ替え
         out = F.relu(self.bn_outlayer_in(out))              # torch.Size[32, 64, 27]     # Batch Normalization
         out = out.permute(0,2,1)                            # torch.Size[32, 27, 64]     # 要素入れ替え
-        out = self.dp(out)                                  # torch.Size[32, 27, 64]     # drop out でニューロンを調整(過学習抑制)
-        out = self.out_layer(out)                           # torch.Size[32, 27,  1]     # あとで調べる
-        out = out.view(-1, node_num)                        # torch.Size[32, 27]
+        out_1 = self.dp(out)                                  # torch.Size[32, 27, 64]     # drop out でニューロンを調整(過学習抑制)
+        out_2 = self.out_layer(out_1)                           # torch.Size[32, 27,  1]     # あとで調べる
+        out_2 = out_2.view(-1, node_num)                        # torch.Size[32, 27]
    
 
-        return out
+        return out_1, out_2
         

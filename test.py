@@ -33,6 +33,7 @@ def test(model, dataloader):
     t_test_predicted_list = []
     t_test_ground_list = []
     t_test_labels_list = []
+    conv_list = []                  # 埋め込み用のlist
 
     test_len = len(dataloader)      # val : 10 (312 ÷ batch_size 32) ／ test : 64 (2043 ÷ batch_size 32)
 
@@ -48,10 +49,11 @@ def test(model, dataloader):
                                                                         # edge_index : torch.Size[32, 2, 702]        
         with torch.no_grad():
             out_1, predicted = model(x, edge_index)
-            predicted = predicted.float().to(device)
-                                                                        # predicted  : torch.Size[32, 27]
-            loss = loss_func(predicted, y)
+            predicted = predicted.float().to(device)                    # predicted  : torch.Size[32, 27]
+            out_1 = out_1.float().to(device)
             
+            conv_list.append(out_1)                                     # 埋め込みベクトルを格納
+            loss = loss_func(predicted, y)
             labels = labels.unsqueeze(1).repeat(1, predicted.shape[1])  # torch.Size[32, 27]
                                                                         # [32] →unsqueeze(1)→ [32, 1] →repeat(1,27)→ [32, 27]
 
@@ -81,7 +83,7 @@ def test(model, dataloader):
     
     avg_loss = sum(test_loss_list)/len(test_loss_list)       # loss の平均 (val での loss ／test での loss を出力)
 
-    return avg_loss, [test_predicted_list, test_ground_list, test_labels_list]
+    return avg_loss, [test_predicted_list, test_ground_list, test_labels_list], conv_list
 
 
 

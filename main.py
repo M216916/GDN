@@ -4,8 +4,12 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader, random_split, Subset
-
 from sklearn.preprocessing import MinMaxScaler
+import pytorch_lightning as pl
+import torch.nn as nn
+import torch.nn.functional as F
+from pytorch_lightning import Trainer
+
 
 from util.env import get_device, set_device
 from util.preprocess import build_loc_net, construct_data
@@ -27,8 +31,6 @@ from datetime import datetime
 import os
 import argparse
 from pathlib import Path
-
-import matplotlib.pyplot as plt
 
 import json
 import random
@@ -128,7 +130,6 @@ class Main():
             ).to(self.device)                                               # cpu
 
 
-
     def run(self):
 
         if len(self.env_config['load_model_path']) > 0:                     # × (len(self.env_config['load_model_path'] = 0)
@@ -155,6 +156,104 @@ class Main():
         _, self.test_result, conv_list = test(best_model, self.test_dataloader)        # _:スカラー ／ self.test_result:(3,2044,27)
         _, self.val_result, __ = test(best_model, self.val_dataloader)          # _:スカラー ／ self.test_result:(3, 312,27)
 
+
+
+        #■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+        x = conv_list[-1][-1]
+        t = pd.read_csv('/home/inaba/GDN/data/yfinance_4/true.csv')
+        t = torch.tensor(t.values[0], dtype=torch.int64)
+
+        dataset = torch.utils.data.TensorDataset(x, t)
+
+        n_train = int(len(dataset) * 0.6)
+        n_val = int((len(dataset) - n_train) * 0.5)
+        n_test = len(dataset) - n_train - n_val
+
+        # ランダムに分割を行うため、シードを固定して再現性を確保
+        torch.manual_seed(0)
+
+        # データセットの分割
+        train_, val_, test_ = torch.utils.data.random_split(dataset, [n_train, n_val, n_test])
+
+        class Net(pl.LightningModule):
+
+            def __init__(self, input_size=64, hidden_size=5, output_size=3, batch_size=10):
+                super(Net, self).__init__()
+                self.fc1 = nn.Linear(input_size, hidden_size)
+                self.fc2 = nn.Linear(hidden_size, output_size)
+                self.batch_size = batch_size
+
+            def forward(self, x):
+                x = self.fc1(x)
+                x = F.relu(x)
+                x = self.fc2(x)
+                return x
+
+            def lossfun(self, y, t):
+                return F.cross_entropy(y, t)
+            
+            def configure_optimizers(self):
+                return torch.optim.SGD(self.parameters(), lr=0.1)
+            
+            @pl.data_loader
+            def train_dataloader(self):
+                return torch.utils.data.DataLoader(train_, self.batch_size, shuffle=True)
+            
+            def training_step(self, batch, batch_nb):
+                x, t = batch
+                y = self.forward(x)
+                loss = self.lossfun(y, t)
+                results = {'loss': loss}
+                return results
+            
+            @pl.data_loader
+            def val_dataloader(self):
+                return torch.utils.data.DataLoader(val_, self.batch_size)
+            
+            def validation_step(self, batch, batch_nb):
+                x, t = batch
+                y = self.forward(x)
+                loss = self.lossfun(y, t)
+                y_label = torch.argmax(y, dim=1)
+                acc = torch.sum(t == y_label) * 1.0 / len(t)        
+                results = {'val_loss': loss, 'val_acc': acc}
+                return results
+            
+            def validation_end(self, outputs):
+                avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+                avg_acc  =torch.stack([x['val_acc'] for x in outputs]).mean()
+                results = {'val_loss': avg_loss, 'val_acc': avg_acc}
+                return results
+            
+            # New: テストデータセットの設定
+            @pl.data_loader
+            def test_dataloader(self):
+                return torch.utils.data.DataLoader(test_, self.batch_size)
+            
+            # New: テストデータに対するイテレーションごとの処理
+            def test_step(self, batch, batch_nb):
+                x, t = batch
+                y = self.forward(x)
+                loss = self.lossfun(y, t)
+                y_label = torch.argmax(y, dim=1)
+                acc = torch.sum(t == y_label) * 1.0 / len(t)
+                results = {'test_loss': loss, 'test_acc': acc}
+                return results
+            
+            # New: テストデータに対するエポックごとの処理
+            def test_end(self, outputs):
+                avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+                avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean()
+                results = {'test_loss': avg_loss, 'test_acc': avg_acc}
+                return results
+
+        torch.manual_seed(0)                                               # 乱数のシード固定
+        net = Net()                                                        # インスタンス化
+        trainer = Trainer(early_stop_callback = True, max_epochs = 100)    # 学習用に用いるクラスの Trainer をインスタンス化
+        trainer.fit(net)                                                   # Trainer によるモデルの学習
+        trainer.test()
+        print(trainer.callback_metrics)
+        #■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
         self.get_score(self.test_result, self.val_result)                   # None
 
     def get_loaders(self, train_dataset, seed, batch, val_ratio=0.1):
@@ -187,9 +286,6 @@ class Main():
         feature_num = len(test_result[0][0])                                                       # 27 (すべて 0.0 or 1.0)
         np_test_result = np.array(test_result)                                                     # (3, 2044, 27)
         np_val_result = np.array(val_result)                                                       # (3,  312, 27)
-        
-        
-        import matplotlib.pyplot as plt
 
         folder_path = './img/'
         if not os.path.exists(folder_path):
@@ -303,5 +399,3 @@ if __name__ == "__main__":
 #        ┗━(0) : Linear(in_features=64, out_features=1, bias=True)
 #
 #   (dp): Dropout(p=0.2, inplace=False)
-
-

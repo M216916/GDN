@@ -35,6 +35,9 @@ from pathlib import Path
 import json
 import random
 
+import warnings
+warnings.filterwarnings('ignore')
+
 class Main():
     def __init__(self, train_config, env_config, debug=False):
 
@@ -162,6 +165,11 @@ class Main():
         x = conv_list[-1][-1]
         t = pd.read_csv('/home/inaba/GDN/data/yfinance_4/true.csv')
         t = torch.tensor(t.values[0], dtype=torch.int64)
+
+        x_2 = pd.read_csv('/home/inaba/GDN/data/yfinance_5/df_non_2.csv')
+        x_2 = torch.tensor(x_2.values, dtype=torch.int64)
+        x_2 = torch.t(x_2).float()
+        x = torch.cat([x, x_2], axis=1)
 
         dataset = torch.utils.data.TensorDataset(x, t)
 

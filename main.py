@@ -185,7 +185,7 @@ class Main():
 
         class Net(pl.LightningModule):
 
-            def __init__(self, input_size=64, hidden_size=5, output_size=3, batch_size=10):
+            def __init__(self, input_size=104, hidden_size=5, output_size=3, batch_size=10):
                 super(Net, self).__init__()
                 self.fc1 = nn.Linear(input_size, hidden_size)
                 self.fc2 = nn.Linear(hidden_size, output_size)

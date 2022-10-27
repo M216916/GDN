@@ -162,105 +162,84 @@ class Main():
 
 
         #■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-        x = conv_list[-1][-1]
         t = pd.read_csv('/home/inaba/GDN/data/yfinance_5/true.csv')
-        t = torch.tensor(t.values[0], dtype=torch.int64)
+        t = t.transpose().rename(columns={0: 'target'})
+
+        x_1 = conv_list[-1][-1]
+        list_embed = list(range(40,104,1))
+        x_1 = x_1.to('cpu').detach().numpy().copy()
+        x_1 = pd.DataFrame(x_1, columns = list_embed)
+        x_1.index = t.index     
 
         x_2 = pd.read_csv('/home/inaba/GDN/data/yfinance_5/x_non.csv')
-        x_2 = torch.tensor(x_2.values, dtype=torch.int64)
-        x_2 = torch.t(x_2).float()
-        x = torch.cat([x, x_2], axis=1)
+        x_2 = x_2.transpose()
 
-        dataset = torch.utils.data.TensorDataset(x, t)
+        data = pd.concat([x_2, x_1, t], axis=1)
 
-        n_train = int(len(dataset) * 0.6)
-        n_val = int((len(dataset) - n_train) * 0.5)
-        n_test = len(dataset) - n_train - n_val
+        from sklearn.model_selection import train_test_split
+        import lightgbm as lgb
 
-        # ランダムに分割を行うため、シードを固定して再現性を確保
-        torch.manual_seed(0)
+        # ランダムシード値（擬似乱数）
+        RANDOM_STATE = 10
 
-        # データセットの分割
-        train_, val_, test_ = torch.utils.data.random_split(dataset, [n_train, n_val, n_test])
+        # 学習データと評価データの割合
+        TEST_SIZE = 0.2
 
-        class Net(pl.LightningModule):
+        # 学習データと評価データを作成
+        x_train, x_test, y_train, y_test = train_test_split(data.iloc[:, 0:data.shape[1]-1],
+                                                            data.iloc[:, data.shape[1]-1],
+                                                            test_size=TEST_SIZE,
+                                                            random_state=RANDOM_STATE)
 
-            def __init__(self, input_size=104, hidden_size=5, output_size=3, batch_size=10):
-                super(Net, self).__init__()
-                self.fc1 = nn.Linear(input_size, hidden_size)
-                self.fc2 = nn.Linear(hidden_size, output_size)
-                self.batch_size = batch_size
+        # trainのデータセットの2割をモデル学習時のバリデーションデータとして利用する
+        x_train, x_valid, y_train, y_valid = train_test_split(x_train,
+                                                            y_train,
+                                                            test_size=TEST_SIZE,
+                                                            random_state=RANDOM_STATE)
 
-            def forward(self, x):
-                x = self.fc1(x)
-                x = F.relu(x)
-                x = self.fc2(x)
-                return x
+        # LightGBMを利用するのに必要なフォーマットに変換
+        lgb_train = lgb.Dataset(x_train, y_train)
+        lgb_eval = lgb.Dataset(x_valid, y_valid, reference=lgb_train)        
 
-            def lossfun(self, y, t):
-                return F.cross_entropy(y, t)
-            
-            def configure_optimizers(self):
-                return torch.optim.SGD(self.parameters(), lr=0.1)
-            
-            @pl.data_loader
-            def train_dataloader(self):
-                return torch.utils.data.DataLoader(train_, self.batch_size, shuffle=True)
-            
-            def training_step(self, batch, batch_nb):
-                x, t = batch
-                y = self.forward(x)
-                loss = self.lossfun(y, t)
-                results = {'loss': loss}
-                return results
-            
-            @pl.data_loader
-            def val_dataloader(self):
-                return torch.utils.data.DataLoader(val_, self.batch_size)
-            
-            def validation_step(self, batch, batch_nb):
-                x, t = batch
-                y = self.forward(x)
-                loss = self.lossfun(y, t)
-                y_label = torch.argmax(y, dim=1)
-                acc = torch.sum(t == y_label) * 1.0 / len(t)        
-                results = {'val_loss': loss, 'val_acc': acc}
-                return results
-            
-            def validation_end(self, outputs):
-                avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-                avg_acc  =torch.stack([x['val_acc'] for x in outputs]).mean()
-                results = {'val_loss': avg_loss, 'val_acc': avg_acc}
-                return results
-            
-            # New: テストデータセットの設定
-            @pl.data_loader
-            def test_dataloader(self):
-                return torch.utils.data.DataLoader(test_, self.batch_size)
-            
-            # New: テストデータに対するイテレーションごとの処理
-            def test_step(self, batch, batch_nb):
-                x, t = batch
-                y = self.forward(x)
-                loss = self.lossfun(y, t)
-                y_label = torch.argmax(y, dim=1)
-                acc = torch.sum(t == y_label) * 1.0 / len(t)
-                results = {'test_loss': loss, 'test_acc': acc}
-                return results
-            
-            # New: テストデータに対するエポックごとの処理
-            def test_end(self, outputs):
-                avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
-                avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean()
-                results = {'test_loss': avg_loss, 'test_acc': avg_acc}
-                return results
+        params = {
+            'objective' : 'multiclass',
+            'metric' : 'multi_logloss',
+            'num_class' : 3,
+            'depth':1,
+            'learning_rate': 0.3,
+        }
 
-        torch.manual_seed(0)                                               # 乱数のシード固定
-        net = Net()                                                        # インスタンス化
-        trainer = Trainer(early_stop_callback = True, max_epochs = 100)    # 学習用に用いるクラスの Trainer をインスタンス化
-        trainer.fit(net)                                                   # Trainer によるモデルの学習
-        trainer.test()
-        print(trainer.callback_metrics)
+        # LightGBM学習
+        evaluation_results = {}
+        evals = [(lgb_train, 'train'), (lgb_eval, 'eval')]
+
+        model = lgb.train(params,
+                        lgb_train,
+                        num_boost_round=100,
+                        valid_names = evals,
+                        valid_sets = [lgb_train, lgb_eval],
+                        early_stopping_rounds=20
+                    )
+
+        pred = model.predict(x_test, num_iteration = model.best_iteration)
+        label = pred.argmax(axis = 1)
+        print("=" * 100)
+        print('▼pred\n', label)
+        print("=" * 100)
+        print('▼true\n',y_test.values)
+
+        from sklearn.metrics import confusion_matrix
+        matrix = confusion_matrix(y_test, label,labels = [0,1,2])
+        print(matrix)
+
+        accuracy = np.trace(matrix)/np.sum(matrix)
+        print('accuracy      :{0:4f}'.format(accuracy))
+
+        for i in range(3):
+            precision = matrix[i,i]/np.sum(matrix[:,i])
+            recall = matrix[i,i]/np.sum(matrix[i,])
+            F1 = (2*precision * recall)/(precision + recall)
+            print('【{0}】precision:{1:4f}  recall:{2:4f}  F1:{3:4f}'.format(i,precision,recall,F1))
         #■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
         self.get_score(self.test_result, self.val_result)                   # None
 

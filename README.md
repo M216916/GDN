@@ -10,7 +10,8 @@
 * 埋込ベクトル x     : torch.Size([716,  64])
 * 非時系列属性 x_non : torch.Size([716,  40])
 * 統合(axis=1) x     : torch.Size([716, 104])
-    
+* Neural Network で分類（716 → 5 → 3）
+
 # 結果
 ### 非時系列なし
         val_acc=0.4266  test_acc=0.5033

@@ -1,5 +1,5 @@
 # モデル
-### GDN_2
+### GDN_3
     
 # データ
 ### yfinance_5
@@ -10,7 +10,7 @@
 * 埋込ベクトル x     : torch.Size([716,  64])
 * 非時系列属性 x_non : torch.Size([716,  40])
 * 統合(axis=1) x     : torch.Size([716, 104])
-* Neural Network で分類（716 → 5 → 3）
+* Light GBM で分類
 
 # 結果
 ### 非時系列なし

@@ -29,14 +29,6 @@ def get_full_err_scores(test_result, val_result):
     return all_scores, all_normals
 
 
-def get_final_err_scores(test_result, val_result):
-    full_scores, all_normals = get_full_err_scores(test_result, val_result, return_normal_scores=True)
-
-    all_scores = np.max(full_scores, axis=0)
-
-    return all_scores
-
-
 
 def get_err_scores(test_res, val_res):
     test_predict, test_gt = test_res
@@ -56,38 +48,9 @@ def get_err_scores(test_res, val_res):
     before_num = 3
     for i in range(before_num, len(err_scores)):
         smoothed_err_scores[i] = np.mean(err_scores[i-before_num:i+1])
-
     
     return smoothed_err_scores
 
-
-
-def get_loss(predict, gt):
-    return eval_mseloss(predict, gt)
-
-def get_f1_scores(total_err_scores, gt_labels, topk=1):
-    print('total_err_scores', total_err_scores.shape)
-    # remove the highest and lowest score at each timestep
-    total_features = total_err_scores.shape[0]
-
-    # topk_indices = np.argpartition(total_err_scores, range(total_features-1-topk, total_features-1), axis=0)[-topk-1:-1]
-    topk_indices = np.argpartition(total_err_scores, range(total_features-topk-1, total_features), axis=0)[-topk:]
-    
-    topk_indices = np.transpose(topk_indices)
-
-    total_topk_err_scores = []
-    topk_err_score_map=[]
-    # topk_anomaly_sensors = []
-
-    for i, indexs in enumerate(topk_indices):
-       
-        sum_score = sum( score for k, score in enumerate(sorted([total_err_scores[index, i] for j, index in enumerate(indexs)])) )
-
-        total_topk_err_scores.append(sum_score)
-
-    final_topk_fmeas = eval_scores(total_topk_err_scores, gt_labels, 400)
-
-    return final_topk_fmeas
 
 def get_val_performance_data(total_err_scores, normal_scores, gt_labels, topk=1):
     total_features = total_err_scores.shape[0]
@@ -112,7 +75,6 @@ def get_val_performance_data(total_err_scores, normal_scores, gt_labels, topk=1)
     rec = recall_score(gt_labels, pred_labels)
 
     f1 = f1_score(gt_labels, pred_labels)
-
 
     auc_score = roc_auc_score(gt_labels, total_topk_err_scores)
 
@@ -148,4 +110,3 @@ def get_best_performance_data(total_err_scores, gt_labels, topk=1):       # tota
     auc_score = roc_auc_score(gt_labels, total_topk_err_scores)           # auc
 
     return max(final_topk_fmeas), pre, rec, auc_score, thresold
-

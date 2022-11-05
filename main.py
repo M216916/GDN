@@ -33,6 +33,9 @@ import matplotlib.pyplot as plt
 import json
 import random
 
+import warnings
+warnings.filterwarnings('ignore')
+
 class Main():
     def __init__(self, train_config, env_config, debug=False):
 

@@ -1,38 +1,26 @@
-# -*- coding: utf-8 -*-
 import pandas as pd
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader, random_split, Subset
-
 from sklearn.preprocessing import MinMaxScaler
-
 from util.env import get_device, set_device
 from util.preprocess import build_loc_net, construct_data
 from util.net_struct import get_feature_map, get_fc_graph_struc
 from util.iostream import printsep
-
 from datasets.TimeDataset import TimeDataset
-
-
 from models.GDN import GDN
-
 from train import train
 from test  import test
 from evaluate import get_err_scores, get_best_performance_data, get_val_performance_data, get_full_err_scores
-
 import sys
 from datetime import datetime
-
 import os
 import argparse
 from pathlib import Path
-
 import matplotlib.pyplot as plt
-
 import json
 import random
-
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -205,28 +193,6 @@ class Main():
             plt.legend()
             plt.show()
             fig.savefig(folder_path + "img_" + str(i) + ".png")
-        '''
-        test_labels = np_test_result[2, :, 0].tolist()                                             # len : 2044  0/1 のみで構成
-    
-        test_scores, normal_scores = get_full_err_scores(test_result, val_result)                  # test_scores   : (27, 2044)
-                                                                                                   # normal_scores : (27,  312)
-
-        top1_best_info = get_best_performance_data(test_scores, test_labels, topk=1)               # len : 5
-        top1_val_info = get_val_performance_data(test_scores, normal_scores, test_labels, topk=1)  # len : 5
-
-
-        print('=========================** Result **============================\n')
-
-        info = None
-        if self.env_config['report'] == 'best':
-            info = top1_best_info
-        elif self.env_config['report'] == 'val':   # ×
-            info = top1_val_info                   # ×
-
-        print(f'F1 score: {info[0]}')
-        print(f'precision: {info[1]}')
-        print(f'recall: {info[2]}\n')
-        '''
 
     def get_save_path(self, feature_name=''):
 
@@ -308,24 +274,3 @@ if __name__ == "__main__":
 
     main = Main(train_config, env_config, debug=False)
     main.run()
-
-
-# 【GDN】
-#   (embedding) : Embedding(27, 64)
-#
-#   (bn_outlayer_in) : BatchNorm1d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-#
-#   (gnn_layers) : ModuleList(
-#     ┗━(0): GNNLayer
-#        ┣━(gnn)       : GraphLayer(5, 64, heads=1)
-#        ┣━(bn)        : BatchNorm1d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-#        ┣━(relu)      : ReLU()
-#        ┗━(leaky_relu): LeakyReLU(negative_slope=0.01)
-#
-#   (out_layer) : OutLayer
-#     ┗━(mlp) : ModuleList
-#        ┗━(0) : Linear(in_features=64, out_features=1, bias=True)
-#
-#   (dp): Dropout(p=0.2, inplace=False)
-
-

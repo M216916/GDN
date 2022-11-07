@@ -12,10 +12,8 @@ class TimeDataset(Dataset):
         self.config = config                 # { slide_win : 5, slide_stride : 1}
         self.edge_index = edge_index         # tensor[[ 1,  2,  3,  ..., 23, 24, 25], [ 0,  0,  0,  ..., 26, 26, 26]] ... (2, 702)
         self.mode = mode                     # train ／ test
-
         x_data = raw_data[:-1]               # train : 27 list × 1565 ／ test : 27 list × 2049
         labels = raw_data[-1]                # train : 1565 (0 or 1)  ／ test : 2049  (0.0 or 1.0)
-
         data = x_data
         data = torch.tensor(data).double()      # torch.Size[27, 1565]   ／ torch.Size[27, 2049]     # to tensor
         labels = torch.tensor(labels).double()  # torch.Size[ 1, 1565]   ／ torch.Size[ 1, 2049]
@@ -28,13 +26,10 @@ class TimeDataset(Dataset):
     def process(self, data, labels):
         x_arr, y_arr = [], []
         labels_arr = []
-
         slide_win, slide_stride = [self.config[k] for k    # slide_win : 5 ／ slide_stride : 1
             in ['slide_win', 'slide_stride']]
         is_train = self.mode == 'train'                    # is_train       : True ／ False
-
         node_num, total_time_len = data.shape              # node_num       :   27 ／   27      # total_time_len : 1565 ／ 2049
-
         rang = range(slide_win, total_time_len, slide_stride) if is_train else range(slide_win, total_time_len)
                                                            # rang           : range(5, 1565) ／ range(5, 2049)
         

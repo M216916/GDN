@@ -70,8 +70,3 @@ class TimeDataset(Dataset):
         label = self.labels[idx].double()
 
         return feature, y, label, edge_index
-
-
-
-
-

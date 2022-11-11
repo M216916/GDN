@@ -3,8 +3,8 @@ DATASET=$2
 
 seed=5
 BATCH_SIZE=32
-SLIDE_WIN=5
-dim=64
+SLIDE_WIN=40
+dim=32
 out_layer_num=1
 SLIDE_STRIDE=1
 topk=5

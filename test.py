@@ -47,9 +47,17 @@ def test(model, dataloader):
                                                                         # y          : torch.Size[32, 27]
                                                                         # labels     : torch.Size[32]
                                                                         # edge_index : torch.Size[32, 2, 702]        
+                        
+        x_ave = torch.mean(input=x, dim=2)
+        for i in range(x.shape[2]):
+            x[:,:,i] = x[:,:,i] / x_ave     
+                        
         with torch.no_grad():
             out_1, predicted = model(x, edge_index)
             predicted = predicted.float().to(device)                    # predicted  : torch.Size[32, 27]
+            
+            predicted = predicted * x_ave
+            
             out_1 = out_1.float().to(device)
             
             conv_list.append(out_1)                                     # 埋め込みベクトルを格納

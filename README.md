@@ -3,6 +3,7 @@
     
 # データ
 ### yfinance_5
+* 2730社
 * list.txt ／ train.csv ／ test.csv  →  回帰
 * true.csv ／ x_non                →  分類
         

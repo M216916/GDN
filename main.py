@@ -162,17 +162,21 @@ class Main():
 
 
         #■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-        t = pd.read_csv('/home/inaba/GDN/data/yfinance_5/true.csv')
+        dataset = self.env_config['dataset']
+        dim = self.train_config['dim']
+        t = pd.read_csv(f'./data/{dataset}/true.csv')
         t = t.transpose().rename(columns={0: 'target'})
 
+        x_2 = pd.read_csv(f'./data/{dataset}/x_non.csv')
+        x_2 = x_2.transpose()
+
+        list_embed = list(range(x_2.shape[1], x_2.shape[1]+dim, 1))
         x_1 = conv_list[-1][-1]
-        list_embed = list(range(40,104,1))
         x_1 = x_1.to('cpu').detach().numpy().copy()
         x_1 = pd.DataFrame(x_1, columns = list_embed)
         x_1.index = t.index     
 
-        x_2 = pd.read_csv('/home/inaba/GDN/data/yfinance_5/x_non.csv')
-        x_2 = x_2.transpose()
+
 
         data = pd.concat([x_2, x_1, t], axis=1)
 

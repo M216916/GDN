@@ -277,10 +277,18 @@ class Main():
         feature_num = len(test_result[0][0])                                                       # 27 (すべて 0.0 or 1.0)
         np_test_result = np.array(test_result)                                                     # (3, 2044, 27)
         np_val_result = np.array(val_result)                                                       # (3,  312, 27)
+ 
+        GDN_num = os.getcwd().replace('/home/inaba/', '')
+        dataset = self.env_config['dataset']
 
-        folder_path = './img/'
+        folder_path = f'/home/inaba/GDN_img/{GDN_num}/'
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
+
+        folder_path = f'/home/inaba/GDN_img/{GDN_num}/{dataset}/'
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)        
+
 
         for i in range(np_test_result.shape[2]):
             fig = plt.figure()

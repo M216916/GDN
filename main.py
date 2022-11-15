@@ -176,74 +176,10 @@ class Main():
         x_1 = pd.DataFrame(x_1, columns = list_embed)
         x_1.index = t.index     
 
-
-
         data = pd.concat([x_2, x_1, t], axis=1)
 
-        from sklearn.model_selection import train_test_split
-        import lightgbm as lgb
+        self.LightGBM(data)
 
-        # ランダムシード値（擬似乱数）
-        RANDOM_STATE = 10
-
-        # 学習データと評価データの割合
-        TEST_SIZE = 0.2
-
-        # 学習データと評価データを作成
-        x_train, x_test, y_train, y_test = train_test_split(data.iloc[:, 0:data.shape[1]-1],
-                                                            data.iloc[:, data.shape[1]-1],
-                                                            test_size=TEST_SIZE,
-                                                            random_state=RANDOM_STATE)
-
-        # trainのデータセットの2割をモデル学習時のバリデーションデータとして利用する
-        x_train, x_valid, y_train, y_valid = train_test_split(x_train,
-                                                            y_train,
-                                                            test_size=TEST_SIZE,
-                                                            random_state=RANDOM_STATE)
-
-        # LightGBMを利用するのに必要なフォーマットに変換
-        lgb_train = lgb.Dataset(x_train, y_train)
-        lgb_eval = lgb.Dataset(x_valid, y_valid, reference=lgb_train)        
-
-        params = {
-            'objective' : 'multiclass',
-            'metric' : 'multi_logloss',
-            'num_class' : 3,
-            'depth':1,
-            'learning_rate': 0.3,
-        }
-
-        # LightGBM学習
-        evaluation_results = {}
-        evals = [(lgb_train, 'train'), (lgb_eval, 'eval')]
-
-        model = lgb.train(params,
-                        lgb_train,
-                        num_boost_round=100,
-                        valid_names = evals,
-                        valid_sets = [lgb_train, lgb_eval],
-                        early_stopping_rounds=20
-                    )
-
-        pred = model.predict(x_test, num_iteration = model.best_iteration)
-        label = pred.argmax(axis = 1)
-        print("=" * 100)
-        print('▼pred\n', label)
-        print("=" * 100)
-        print('▼true\n',y_test.values)
-
-        from sklearn.metrics import confusion_matrix
-        matrix = confusion_matrix(y_test, label,labels = [0,1,2])
-        print(matrix)
-
-        accuracy = np.trace(matrix)/np.sum(matrix)
-        print('accuracy      :{0:4f}'.format(accuracy))
-
-        for i in range(3):
-            precision = matrix[i,i]/np.sum(matrix[:,i])
-            recall = matrix[i,i]/np.sum(matrix[i,])
-            F1 = (2*precision * recall)/(precision + recall)
-            print('【{0}】precision:{1:4f}  recall:{2:4f}  F1:{3:4f}'.format(i,precision,recall,F1))
         #■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
         self.get_score(self.test_result, self.val_result)                   # None
 
@@ -262,12 +198,8 @@ class Main():
         val_sub_indices = indices[val_start_index:val_start_index+val_use_len]
         val_subset = Subset(train_dataset, val_sub_indices)
 
-
-        train_dataloader = DataLoader(train_subset, batch_size=batch,
-                                shuffle=True)
-
-        val_dataloader = DataLoader(val_subset, batch_size=batch,
-                                shuffle=False)
+        train_dataloader = DataLoader(train_subset, batch_size=batch, shuffle=True)
+        val_dataloader = DataLoader(val_subset, batch_size=batch, shuffle=False)
 
         return train_dataloader, val_dataloader
     
@@ -288,7 +220,6 @@ class Main():
         folder_path = f'/home/inaba/GDN_img/{GDN_num}/{dataset}/'
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)        
-
 
         for i in range(np_test_result.shape[2]):
             fig = plt.figure()
@@ -318,6 +249,68 @@ class Main():
             Path(dirname).mkdir(parents=True, exist_ok=True)
 
         return paths
+
+
+    def LightGBM(self, data):
+        from sklearn.model_selection import train_test_split
+        import lightgbm as lgb
+
+        RANDOM_STATE = 10        # ランダムシード値（擬似乱数）
+        TEST_SIZE = 0.2          # 学習データと評価データの割合
+
+        # 学習データと評価データを作成
+        x_train, x_test, y_train, y_test = train_test_split(data.iloc[:, 0:data.shape[1]-1],
+                                                            data.iloc[:, data.shape[1]-1],
+                                                            test_size=TEST_SIZE,
+                                                            random_state=RANDOM_STATE)
+
+        # trainのデータセットの2割をモデル学習時のバリデーションデータとして利用する
+        x_train, x_valid, y_train, y_valid = train_test_split(x_train,
+                                                            y_train,
+                                                            test_size=TEST_SIZE,
+                                                            random_state=RANDOM_STATE)
+
+        # LightGBMを利用するのに必要なフォーマットに変換
+        lgb_train = lgb.Dataset(x_train, y_train)
+        lgb_eval = lgb.Dataset(x_valid, y_valid, reference=lgb_train)        
+
+        params = {'objective' : 'multiclass',
+                  'metric' : 'multi_logloss',
+                  'num_class' : 3,
+                  'depth':1,
+                  'learning_rate': 0.3,}
+
+        # LightGBM学習
+        evaluation_results = {}
+        evals = [(lgb_train, 'train'), (lgb_eval, 'eval')]
+
+        model = lgb.train(params,
+                        lgb_train,
+                        num_boost_round=100,
+                        valid_names = evals,
+                        valid_sets = [lgb_train, lgb_eval],
+                        early_stopping_rounds=20)
+
+        pred = model.predict(x_test, num_iteration = model.best_iteration)
+        label = pred.argmax(axis = 1)
+        print("=" * 100)
+        print('▼pred\n', label)
+        print("=" * 100)
+        print('▼true\n',y_test.values)
+
+        from sklearn.metrics import confusion_matrix
+        matrix = confusion_matrix(y_test, label,labels = [0,1,2])
+        print(matrix)
+
+        accuracy = np.trace(matrix)/np.sum(matrix)
+        print('accuracy      :{0:4f}'.format(accuracy))
+
+        for i in range(3):
+            precision = matrix[i,i]/np.sum(matrix[:,i])
+            recall = matrix[i,i]/np.sum(matrix[i,])
+            F1 = (2*precision * recall)/(precision + recall)
+            print('【{0}】precision:{1:4f}  recall:{2:4f}  F1:{3:4f}'.format(i,precision,recall,F1))
+
 
 if __name__ == "__main__":
 
@@ -380,21 +373,5 @@ if __name__ == "__main__":
     main = Main(train_config, env_config, debug=False)
     main.run()
 
-
-# 【GDN】
-#   (embedding) : Embedding(27, 64)
-#
-#   (bn_outlayer_in) : BatchNorm1d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-#
-#   (gnn_layers) : ModuleList(
-#     ┗━(0): GNNLayer
-#        ┣━(gnn)       : GraphLayer(5, 64, heads=1)
-#        ┣━(bn)        : BatchNorm1d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-#        ┣━(relu)      : ReLU()
-#        ┗━(leaky_relu): LeakyReLU(negative_slope=0.01)
-#
-#   (out_layer) : OutLayer
-#     ┗━(mlp) : ModuleList
-#        ┗━(0) : Linear(in_features=64, out_features=1, bias=True)
-#
-#   (dp): Dropout(p=0.2, inplace=False)
+    main_2 = Main(train_config, env_config, debug=False)
+    main_2.run()

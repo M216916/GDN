@@ -263,6 +263,334 @@ class Main():
             print('【{0}】precision:{1:4f}  recall:{2:4f}  F1:{3:4f}'.format(i,precision,recall,F1))
 
 
+#■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+#■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+#■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+# Main_2 では分類をNNに設定
+
+class Main_2():
+    def __init__(self, train_config, env_config, debug=False):
+
+        self.train_config = train_config
+        self.env_config = env_config
+        self.datestr = None
+
+        dataset = self.env_config['dataset']
+        train_orig = pd.read_csv(f'./data/{dataset}/train.csv', sep=',', index_col=0)
+        test_orig = pd.read_csv(f'./data/{dataset}/test.csv', sep=',', index_col=0)
+       
+        train, test = train_orig, test_orig
+
+        if 'attack' in train.columns:
+            train = train.drop(columns=['attack'])
+
+        feature_map = get_feature_map(dataset)
+        fc_struc = get_fc_graph_struc(dataset)
+
+        set_device(env_config['device'])
+        self.device = get_device()
+
+        fc_edge_index = build_loc_net(fc_struc, list(train.columns), feature_map=feature_map)
+        fc_edge_index = torch.tensor(fc_edge_index, dtype = torch.long)
+        self.feature_map = feature_map
+
+        train_dataset_indata = construct_data(train, feature_map, labels=0)
+        test_dataset_indata = construct_data(test, feature_map, labels=test.attack.tolist())
+
+        cfg = {'slide_win': train_config['slide_win'], 
+               'slide_stride': train_config['slide_stride'],}
+
+        train_dataset = TimeDataset(train_dataset_indata, fc_edge_index, mode='train', config=cfg)    
+        test_dataset = TimeDataset(test_dataset_indata, fc_edge_index, mode='test', config=cfg)
+
+        train_dataloader, val_dataloader = self.get_loaders(train_dataset, train_config['seed'], train_config['batch'], val_ratio = train_config['val_ratio'])
+
+        self.train_dataset = train_dataset
+        self.test_dataset = test_dataset
+
+        self.train_dataloader = train_dataloader
+        self.val_dataloader = val_dataloader
+        self.test_dataloader = DataLoader(test_dataset, batch_size=train_config['batch'],
+                            shuffle=False, num_workers=0)
+
+        edge_index_sets = []
+        edge_index_sets.append(fc_edge_index)
+
+        self.model = GDN(edge_index_sets, len(feature_map),
+                dim=train_config['dim'],
+                input_dim=train_config['slide_win'],
+                out_layer_num=train_config['out_layer_num'],
+                out_layer_inter_dim=train_config['out_layer_inter_dim'],
+                topk=train_config['topk'] ).to(self.device) 
+
+
+    def run(self):
+
+        if len(self.env_config['load_model_path']) > 0:
+            model_save_path = self.env_config['load_model_path']
+
+        else:
+            model_save_path = self.get_save_path()[0]                       # ./pretrained/msl/best_09|21-17:31:58.pt
+
+            self.train_log = train(self.model, model_save_path, 
+                config = train_config,                                      # batch:32, epoch:3, slide_win:5, dim:64, slide_stride:1, comment:msl, ...
+                train_dataloader=self.train_dataloader,                     # torch.utils.data.dataloader.DataLoader object
+                val_dataloader=self.val_dataloader,                         # torch.utils.data.dataloader.DataLoader object
+                feature_map=self.feature_map,                               # M-6, M-1, M-2, S-2 … : len 27
+                test_dataloader=self.test_dataloader,                       # torch.utils.data.dataloader.DataLoader object
+                test_dataset=self.test_dataset,                             # datasets.TimeDataset.TimeDataset object
+                train_dataset=self.train_dataset,                           # datasets.TimeDataset.TimeDataset object
+                dataset_name=self.env_config['dataset'] )
+        
+        # test            
+        self.model.load_state_dict(torch.load(model_save_path))
+        best_model = self.model.to(self.device)
+
+        _, self.test_result, conv_list = test(best_model, self.test_dataloader)
+        _, self.val_result, __ = test(best_model, self.val_dataloader)
+
+        dataset = self.env_config['dataset']
+        dim = self.train_config['dim']
+
+        t = pd.read_csv(f'./data/{dataset}/true.csv')
+        t = torch.tensor(t.values[0], dtype=torch.int64)
+
+        x_1 = conv_list[-1][-1]
+
+        x_2 = pd.read_csv(f'./data/{dataset}/x_non.csv')
+        x_2 = torch.tensor(x_2.values, dtype=torch.int64)
+        x_2 = torch.t(x_2).float()
+        x_2 = x_2[1:,:]
+
+        x = torch.cat([x_1, x_2], axis=1)
+        print(x.shape)
+
+        dataset = torch.utils.data.TensorDataset(x, t)
+
+        self.NN(dataset, x.shape[1])
+
+        self.get_score(self.test_result, self.val_result)
+
+
+    def get_loaders(self, train_dataset, seed, batch, val_ratio=0.1):
+        dataset_len = int(len(train_dataset))                               # 1560
+        train_use_len = int(dataset_len * (1 - val_ratio))                  # 1248
+        val_use_len = int(dataset_len * val_ratio)                          # 312
+        val_start_index = random.randrange(train_use_len)                   # 523
+        indices = torch.arange(dataset_len)                                 
+
+        train_sub_indices = torch.cat([indices[:val_start_index], indices[val_start_index+val_use_len:]])
+        train_subset = Subset(train_dataset, train_sub_indices)
+        val_sub_indices = indices[val_start_index:val_start_index+val_use_len]
+        val_subset = Subset(train_dataset, val_sub_indices)
+
+        train_dataloader = DataLoader(train_subset, batch_size=batch, shuffle=True)
+        val_dataloader = DataLoader(val_subset, batch_size=batch, shuffle=False)
+
+        return train_dataloader, val_dataloader
+    
+
+    def get_score(self, test_result, val_result):
+
+        feature_num = len(test_result[0][0])
+        np_test_result = np.array(test_result)
+        np_val_result = np.array(val_result)
+ 
+        GDN_num = os.getcwd().replace('/home/inaba/', '')
+        dataset = self.env_config['dataset']
+
+        folder_path = f'/home/inaba/GDN_img/{GDN_num}/'
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+
+        folder_path = f'/home/inaba/GDN_img/{GDN_num}/{dataset}/'
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)        
+
+        for i in range(np_test_result.shape[2]):
+            fig = plt.figure()
+            plt.plot(np_test_result[0,:,i], label='Prediction')
+            plt.plot(np_test_result[1,:,i], label='GroundTruth')
+            plt.legend()
+            plt.show()
+            fig.savefig(folder_path + "img_" + str(i) + ".png")
+
+
+    def get_save_path(self, feature_name=''):
+
+        dir_path = self.env_config['save_path']
+        
+        if self.datestr is None:
+            now = datetime.now()
+            self.datestr = now.strftime('%m|%d-%H:%M:%S')
+        datestr = self.datestr          
+
+        paths = [                                        
+            f'./pretrained/{dir_path}/best_{datestr}.pt',
+            f'./results/{dir_path}/{datestr}.csv',
+        ]
+
+        for path in paths:
+            dirname = os.path.dirname(path)
+            Path(dirname).mkdir(parents=True, exist_ok=True)
+
+        return paths
+
+
+    def LightGBM(self, data):
+        from sklearn.model_selection import train_test_split
+        import lightgbm as lgb
+
+        RANDOM_STATE = 10        # ランダムシード値（擬似乱数）
+        TEST_SIZE = 0.2          # 学習データと評価データの割合
+
+        # 学習データと評価データを作成
+        x_train, x_test, y_train, y_test = train_test_split(data.iloc[:, 0:data.shape[1]-1],
+                                                            data.iloc[:, data.shape[1]-1],
+                                                            test_size=TEST_SIZE,
+                                                            random_state=RANDOM_STATE)
+
+        # trainのデータセットの2割をモデル学習時のバリデーションデータとして利用する
+        x_train, x_valid, y_train, y_valid = train_test_split(x_train,
+                                                            y_train,
+                                                            test_size=TEST_SIZE,
+                                                            random_state=RANDOM_STATE)
+
+        # LightGBMを利用するのに必要なフォーマットに変換
+        lgb_train = lgb.Dataset(x_train, y_train)
+        lgb_eval = lgb.Dataset(x_valid, y_valid, reference=lgb_train)        
+
+        params = {'objective' : 'multiclass',
+                  'metric' : 'multi_logloss',
+                  'num_class' : 3,
+                  'depth':1,
+                  'learning_rate': 0.3,}
+
+        # LightGBM学習
+        evaluation_results = {}
+        evals = [(lgb_train, 'train'), (lgb_eval, 'eval')]
+
+        model = lgb.train(params,
+                        lgb_train,
+                        num_boost_round=100,
+                        valid_names = evals,
+                        valid_sets = [lgb_train, lgb_eval],
+                        early_stopping_rounds=20)
+
+        pred = model.predict(x_test, num_iteration = model.best_iteration)
+        label = pred.argmax(axis = 1)
+        print("=" * 100)
+        print('▼pred\n', label)
+        print("=" * 100)
+        print('▼true\n',y_test.values)
+
+        from sklearn.metrics import confusion_matrix
+        matrix = confusion_matrix(y_test, label,labels = [0,1,2])
+        print(matrix)
+
+        accuracy = np.trace(matrix)/np.sum(matrix)
+        print('accuracy      :{0:4f}'.format(accuracy))
+
+        for i in range(3):
+            precision = matrix[i,i]/np.sum(matrix[:,i])
+            recall = matrix[i,i]/np.sum(matrix[i,])
+            F1 = (2*precision * recall)/(precision + recall)
+            print('【{0}】precision:{1:4f}  recall:{2:4f}  F1:{3:4f}'.format(i,precision,recall,F1))
+
+    
+    def NN(self, dataset, dim):
+
+        n_train = int(len(dataset) * 0.6)
+        n_val = int((len(dataset) - n_train) * 0.5)
+        n_test = len(dataset) - n_train - n_val
+
+        # ランダムに分割を行うため、シードを固定して再現性を確保
+        torch.manual_seed(0)
+
+        # データセットの分割
+        train_, val_, test_ = torch.utils.data.random_split(dataset, [n_train, n_val, n_test])
+
+        class Net(pl.LightningModule):
+
+            def __init__(self, input_size=dim, hidden_size=5, output_size=3, batch_size=10):
+                super(Net, self).__init__()
+                self.fc1 = nn.Linear(input_size, hidden_size)
+                self.fc2 = nn.Linear(hidden_size, output_size)
+                self.batch_size = batch_size
+
+            def forward(self, x):
+                x = self.fc1(x)
+                x = F.relu(x)
+                x = self.fc2(x)
+                return x
+
+            def lossfun(self, y, t):
+                return F.cross_entropy(y, t)
+            
+            def configure_optimizers(self):
+                return torch.optim.SGD(self.parameters(), lr=0.1)
+            
+            @pl.data_loader
+            def train_dataloader(self):
+                return torch.utils.data.DataLoader(train_, self.batch_size, shuffle=True)
+            
+            def training_step(self, batch, batch_nb):
+                x, t = batch
+                y = self.forward(x)
+                loss = self.lossfun(y, t)
+                results = {'loss': loss}
+                return results
+            
+            @pl.data_loader
+            def val_dataloader(self):
+                return torch.utils.data.DataLoader(val_, self.batch_size)
+            
+            def validation_step(self, batch, batch_nb):
+                x, t = batch
+                y = self.forward(x)
+                loss = self.lossfun(y, t)
+                y_label = torch.argmax(y, dim=1)
+                acc = torch.sum(t == y_label) * 1.0 / len(t)        
+                results = {'val_loss': loss, 'val_acc': acc}
+                return results
+            
+            def validation_end(self, outputs):
+                avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+                avg_acc  =torch.stack([x['val_acc'] for x in outputs]).mean()
+                results = {'val_loss': avg_loss, 'val_acc': avg_acc}
+                return results
+            
+            # New: テストデータセットの設定
+            @pl.data_loader
+            def test_dataloader(self):
+                return torch.utils.data.DataLoader(test_, self.batch_size)
+            
+            # New: テストデータに対するイテレーションごとの処理
+            def test_step(self, batch, batch_nb):
+                x, t = batch
+                y = self.forward(x)
+                loss = self.lossfun(y, t)
+                y_label = torch.argmax(y, dim=1)
+                acc = torch.sum(t == y_label) * 1.0 / len(t)
+                results = {'test_loss': loss, 'test_acc': acc}
+                return results
+            
+            # New: テストデータに対するエポックごとの処理
+            def test_end(self, outputs):
+                avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+                avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean()
+                results = {'test_loss': avg_loss, 'test_acc': avg_acc}
+                return results
+
+        torch.manual_seed(0)                                               # 乱数のシード固定
+        net = Net()                                                        # インスタンス化
+        trainer = Trainer(early_stop_callback = True, max_epochs = 100)    # 学習用に用いるクラスの Trainer をインスタンス化
+        trainer.fit(net)                                                   # Trainer によるモデルの学習
+        trainer.test()
+        print(trainer.callback_metrics)
+
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -321,8 +649,8 @@ if __name__ == "__main__":
     }
     
 
-    main = Main(train_config, env_config, debug=False)
-    main.run()
+#    main = Main(train_config, env_config, debug=False)
+#    main.run()
 
-    main_2 = Main(train_config, env_config, debug=False)
+    main_2 = Main_2(train_config, env_config, debug=False)
     main_2.run()

@@ -13,6 +13,7 @@ from evaluate import get_best_performance_data, get_val_performance_data, get_fu
 from sklearn.metrics import precision_score, recall_score, roc_auc_score, f1_score
 from torch.utils.data import DataLoader, random_split, Subset
 from scipy.stats import iqr
+import pandas as pd
 
 
 
@@ -21,6 +22,10 @@ def loss_func(y_pred, y_true):
     loss = F.mse_loss(y_pred, y_true, reduction='mean')
 
     return loss
+
+
+def CE_loss_func(y_pred, y_true):
+    return F.cross_entropy(y_pred, y_true)
 
 
 
@@ -68,24 +73,38 @@ def train(model = None, save_path = '', config={},  train_dataloader=None, val_d
                                                              # labels     : torch.Size[32, 27]
                                                              # edge_index : torch.Size[32, 2, 702]
                         
-            x_ave = torch.mean(input=x, dim=2)
-            for i in range(x.shape[2]):
-                x[:,:,i] = x[:,:,i] / x_ave                        
+#            x_ave = torch.mean(input=x, dim=2)
+#            for i in range(x.shape[2]):
+#                x[:,:,i] = x[:,:,i] / x_ave                        
 
             optimizer.zero_grad()
-            out_1, out_2 = model(x, edge_index)              # out        : torch.Size[32, 27]
+            out_1, out_2 = model(x, edge_index)
             out_2= out_2.float().to(device)
+
+#            print('▼x', x.shape)
+#            print('▼edge_index', edge_index.shape)
+#            print('▼out_2', out_2.shape)
+#            print('▼labels', labels.shape)
+
+#            out_2 = out_2 * x_ave
+
+
+            t = pd.read_csv('./data/yfinance_8/true.csv')
+            t = torch.tensor(t.values, dtype=torch.int64).squeeze()
+            true = torch.cat([t,t], 0)
+            for i in range(int(out_1.shape[0]/len(t))-2):
+                true = torch.cat([true,t], 0)        
+
+
+#            loss = loss_func(out_2, labels)                  # MSE loss
+            CE_loss = CE_loss_func(out_1, true)
             
-            out_2 = out_2 * x_ave
-            
-            loss = loss_func(out_2, labels)                  # MSE loss
-            
-            loss.backward()
+            CE_loss.backward()
             optimizer.step()
 
             
-            train_loss_list.append(loss.item())              # loss値 を記録していく (39 * epoch数)
-            acu_loss += loss.item()                          # loss値 の1epochあたりの和 (→平均化する)
+            train_loss_list.append(CE_loss.item())              # loss値 を記録していく (39 * epoch数)
+            acu_loss += CE_loss.item()                          # loss値 の1epochあたりの和 (→平均化する)
                 
             i += 1
 

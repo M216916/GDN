@@ -48,15 +48,15 @@ def test(model, dataloader):
                                                                         # labels     : torch.Size[32]
                                                                         # edge_index : torch.Size[32, 2, 702]        
                         
-        x_ave = torch.mean(input=x, dim=2)
-        for i in range(x.shape[2]):
-            x[:,:,i] = x[:,:,i] / x_ave     
+#        x_ave = torch.mean(input=x, dim=2)
+#        for i in range(x.shape[2]):
+#            x[:,:,i] = x[:,:,i] / x_ave     
                         
         with torch.no_grad():
             out_1, predicted = model(x, edge_index)
             predicted = predicted.float().to(device)                    # predicted  : torch.Size[32, 27]
             
-            predicted = predicted * x_ave
+#            predicted = predicted * x_ave
             
             out_1 = out_1.float().to(device)
             
@@ -92,7 +92,3 @@ def test(model, dataloader):
     avg_loss = sum(test_loss_list)/len(test_loss_list)       # loss の平均 (val での loss ／test での loss を出力)
 
     return avg_loss, [test_predicted_list, test_ground_list, test_labels_list], conv_list
-
-
-
-

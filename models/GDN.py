@@ -8,6 +8,9 @@ from util.env import *
 from torch_geometric.nn import GCNConv, GATConv, EdgeConv
 import math
 import torch.nn.functional as F
+import pandas as pd
+import os
+import pytorch_lightning as pl
 
 from .graph_layer import GraphLayer
 
@@ -56,6 +59,19 @@ class OutLayer(nn.Module):
         return out
 
 
+class Net(pl.LightningModule):
+
+    def __init__(self, input_size=56, hidden_size=10, output_size=3):
+        super(Net, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, output_size)
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = self.fc2(x)
+        return x
+
 
 class GNNLayer(nn.Module):
     def __init__(self, in_channel, out_channel, inter_dim=0, heads=1, node_num=100):
@@ -102,6 +118,7 @@ class GDN(nn.Module):
         self.learned_graph = None
 
         self.out_layer = OutLayer(dim*edge_set_num, node_num, out_layer_num, inter_num = out_layer_inter_dim)
+
         self.cache_edge_index_sets = [None] * edge_set_num    # [None]
         self.cache_embed_index = None                         # None
 
@@ -170,10 +187,26 @@ class GDN(nn.Module):
         out = out.permute(0,2,1)                            # torch.Size[32, 64, 27]     # 要素入れ替え
         out = F.relu(self.bn_outlayer_in(out))              # torch.Size[32, 64, 27]     # Batch Normalization
         out = out.permute(0,2,1)                            # torch.Size[32, 27, 64]     # 要素入れ替え
-        out_1 = self.dp(out)                                  # torch.Size[32, 27, 64]     # drop out でニューロンを調整(過学習抑制)
-        out_2 = self.out_layer(out_1)                           # torch.Size[32, 27,  1]     # あとで調べる
-        out_2 = out_2.view(-1, node_num)                        # torch.Size[32, 27]
-   
+        out = self.dp(out)                                  # torch.Size[32, 27, 64]     # drop out でニューロンを調整(過学習抑制)
+
+
+
+        x_non = pd.read_csv('./data/yfinance_8/x_non.csv')
+        x_non = torch.tensor(x_non.values, dtype=torch.int64)
+        x_non = torch.t(x_non[:,1:]).float()
+        x_non_list = []
+        for i in range(out.shape[0]):
+            x_non_list.append(x_non)
+        x_non = torch.stack(x_non_list)
+
+        out_1 = torch.cat([out, x_non], dim=2)
+        out_1 = out_1.view(out_1.shape[0]*out_1.shape[1], out_1.shape[2])
+        
+
+        net = Net()
+        out_1 = net.forward(out_1)               # NN の出力 [320, 3]
+
+        out_2 = self.out_layer(out)
+        out_2 = out_2.view(-1, node_num)         # Outlayer の出力
 
         return out_1, out_2
-        

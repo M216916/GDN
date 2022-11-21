@@ -16,7 +16,6 @@ from .graph_layer import GraphLayer
 
 
 def get_batch_edge_index(org_edge_index, batch_num, node_num):
-    # org_edge_index:(2, edge_num)
     edge_index = org_edge_index.clone().detach()
     edge_num = org_edge_index.shape[1]
     batch_edge_index = edge_index.repeat(1,batch_num).contiguous()

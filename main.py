@@ -116,7 +116,7 @@ class Main():
         _, self.test_result, conv_list = test(best_model, self.test_dataloader)
         _, self.val_result, __ = test(best_model, self.val_dataloader)
 
-        self.get_score(self.test_result, self.val_result)
+        self.regression(self.test_result, self.val_result)
 
 
     def get_loaders(self, train_dataset, seed, batch, val_ratio=0.1):
@@ -137,7 +137,7 @@ class Main():
         return train_dataloader, val_dataloader
     
 
-    def get_score(self, test_result, val_result):
+    def regression(self, test_result, val_result):
 
         feature_num = len(test_result[0][0])
         np_test_result = np.array(test_result)

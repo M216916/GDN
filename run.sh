@@ -16,7 +16,7 @@ decay=0
 path_pattern="${DATASET}"
 COMMENT="${DATASET}"
 
-EPOCH=2
+EPOCH=3
 report='best'
 
 if [[ "$gpu_n" == "cpu" ]]; then

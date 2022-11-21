@@ -54,9 +54,7 @@ def test(model, dataloader):
                         
         with torch.no_grad():
             out_1, predicted = model(x, edge_index)
-            predicted = predicted.float().to(device)                    # predicted  : torch.Size[32, 27]
-            
-#            predicted = predicted * x_ave
+            predicted = predicted.float().to(device)
             
             out_1 = out_1.float().to(device)
             

@@ -17,76 +17,46 @@ from util.data import *
 from util.preprocess import *
 
 
+def CE_loss_func(y_pred, y_true):
+    return F.cross_entropy(y_pred, y_true)
 
-def test(model, dataloader):
-    # test
-    loss_func = nn.MSELoss(reduction='mean')
+def test(model, dataloader, config):
+
     device = get_device()
 
     test_loss_list = []
     now = time.time()
 
-    test_predicted_list = []
-    test_ground_list = []
-    test_labels_list = []
-
-    t_test_predicted_list = []
-    t_test_ground_list = []
-    t_test_labels_list = []
-    conv_list = []                  # 埋め込み用のlist
-
-    test_len = len(dataloader)      # val : 10 (312 ÷ batch_size 32) ／ test : 64 (2043 ÷ batch_size 32)
+    test_len = len(dataloader)
 
     model.eval()
 
     i = 0
     acu_loss = 0
     for x, y, labels, edge_index in dataloader:
-        x, y, labels, edge_index = [item.to(device).float() for item in [x, y, labels, edge_index]]
-                                                                        # x          : torch.Size[32, 27, 5]
-                                                                        # y          : torch.Size[32, 27]
-                                                                        # labels     : torch.Size[32]
-                                                                        # edge_index : torch.Size[32, 2, 702]        
-                        
-#        x_ave = torch.mean(input=x, dim=2)
-#        for i in range(x.shape[2]):
-#            x[:,:,i] = x[:,:,i] / x_ave     
+        x, y, labels, edge_index = [item.to(device).float() for item in [x, y, labels, edge_index]] 
                         
         with torch.no_grad():
-            out_1, predicted = model(x, edge_index)
-            predicted = predicted.float().to(device)
-            
-            out_1 = out_1.float().to(device)
-            
-            conv_list.append(out_1)                                     # 埋め込みベクトルを格納
-            loss = loss_func(predicted, y)
-            labels = labels.unsqueeze(1).repeat(1, predicted.shape[1])  # torch.Size[32, 27]
-                                                                        # [32] →unsqueeze(1)→ [32, 1] →repeat(1,27)→ [32, 27]
+            out = model(x, edge_index)
+            out = out.float().to(device)
 
-            if len(t_test_predicted_list) <= 0:
-                t_test_predicted_list = predicted
-                t_test_ground_list = y
-                t_test_labels_list = labels
-            else:
-                t_test_predicted_list = torch.cat((t_test_predicted_list, predicted), dim=0)   # torch.Size[32, 27] → [64, 27] → ... → [312, 27]
-                t_test_ground_list = torch.cat((t_test_ground_list, y), dim=0)                 # torch.Size[32, 27] → [64, 27] → ... → [312, 27]
-                t_test_labels_list = torch.cat((t_test_labels_list, labels), dim=0)            # torch.Size[32, 27] → [64, 27] → ... → [312, 27]
-                
-                
+            dataset = config['comment']
+            t = pd.read_csv(f'./data/{dataset}/true.csv')
+            t = torch.tensor(t.values, dtype=torch.int64).squeeze()
+            true = torch.cat([t,t], 0)
+            for i in range(int(out.shape[0]/len(t))-2):
+                true = torch.cat([true,t], 0)  
+
+            CE_loss = CE_loss_func(out, true)
         
-        test_loss_list.append(loss.item())                   # len ... val : 10 ／ test : 64
-        acu_loss += loss.item()                              # loss の和
-        
+        test_loss_list.append(CE_loss.item())
+        acu_loss += CE_loss.item()
+
         i += 1
 
         if i % 10000 == 1 and i > 1:
             print(timeSincePlus(now, i / test_len))
 
+    avg_loss = sum(test_loss_list)/len(test_loss_list)
 
-    test_predicted_list = t_test_predicted_list.tolist()        
-    test_ground_list = t_test_ground_list.tolist()        
-    test_labels_list = t_test_labels_list.tolist()      
-    
-    avg_loss = sum(test_loss_list)/len(test_loss_list)       # loss の平均 (val での loss ／test での loss を出力)
-
-    return avg_loss, [test_predicted_list, test_ground_list, test_labels_list], conv_list
+    return avg_loss

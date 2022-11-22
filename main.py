@@ -88,7 +88,8 @@ class Main():
                 input_dim=train_config['slide_win'],
                 out_layer_num=train_config['out_layer_num'],
                 out_layer_inter_dim=train_config['out_layer_inter_dim'],
-                topk=train_config['topk'] ).to(self.device) 
+                topk=train_config['topk'],
+                config=train_config).to(self.device)
 
 
     def run(self):
@@ -113,10 +114,9 @@ class Main():
         self.model.load_state_dict(torch.load(model_save_path))
         best_model = self.model.to(self.device)
 
-        _, self.test_result, conv_list = test(best_model, self.test_dataloader)
-        _, self.val_result, __ = test(best_model, self.val_dataloader)
+        _ = test(best_model, self.test_dataloader, train_config)
+        _ = test(best_model, self.val_dataloader, train_config)
 
-        self.regression(self.test_result, self.val_result)
 
 
     def get_loaders(self, train_dataset, seed, batch, val_ratio=0.1):
@@ -135,32 +135,6 @@ class Main():
         val_dataloader = DataLoader(val_subset, batch_size=batch, shuffle=False)
 
         return train_dataloader, val_dataloader
-    
-
-    def regression(self, test_result, val_result):
-
-        feature_num = len(test_result[0][0])
-        np_test_result = np.array(test_result)
-        np_val_result = np.array(val_result)
- 
-        GDN_num = os.getcwd().replace('/home/inaba/', '')
-        dataset = self.env_config['dataset']
-
-        folder_path = f'/home/inaba/GDN_img/{GDN_num}/'
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
-
-        folder_path = f'/home/inaba/GDN_img/{GDN_num}/{dataset}/'
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)        
-
-        for i in range(np_test_result.shape[2]):
-            fig = plt.figure()
-            plt.plot(np_test_result[0,:,i], label='Prediction')
-            plt.plot(np_test_result[1,:,i], label='GroundTruth')
-            plt.legend()
-            plt.show()
-            fig.savefig(folder_path + "img_" + str(i) + ".png")
 
 
     def get_save_path(self, feature_name=''):

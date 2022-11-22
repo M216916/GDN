@@ -17,24 +17,14 @@ import pandas as pd
 
 
 
-
-def loss_func(y_pred, y_true):
-    loss = F.mse_loss(y_pred, y_true, reduction='mean')
-
-    return loss
-
-
 def CE_loss_func(y_pred, y_true):
     return F.cross_entropy(y_pred, y_true)
-
 
 
 def train(model = None, save_path = '', config={},  train_dataloader=None, val_dataloader=None, feature_map={}, test_dataloader=None, test_dataset=None, dataset_name='swat', train_dataset=None):
 
     seed = config['seed']
-
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=config['decay'])
-
     now = time.time()
     
     train_loss_list = []
@@ -42,8 +32,7 @@ def train(model = None, save_path = '', config={},  train_dataloader=None, val_d
 
     device = get_device()
 
-
-    acu_loss = 0
+    sum_loss = 0
     min_loss = 1e+8
     min_f1 = 0
     min_pre = 0
@@ -53,6 +42,8 @@ def train(model = None, save_path = '', config={},  train_dataloader=None, val_d
     epoch = config['epoch']
     early_stop_win = 15
 
+    print(model.state_dict()['embedding.weight'])
+    print(model.state_dict().keys())
     model.train()
 
     log_interval = 1000
@@ -62,63 +53,42 @@ def train(model = None, save_path = '', config={},  train_dataloader=None, val_d
 
     for i_epoch in range(epoch):
 
-        acu_loss = 0
+        sum_loss = 0
         model.train()
 
         for x, labels, attack_labels, edge_index in dataloader:
             _start = time.time()
 
-            x, labels, edge_index = [item.float().to(device) for item in [x, labels, edge_index]]
-                                                             # x          : torch.Size[32, 27, 5]
-                                                             # labels     : torch.Size[32, 27]
-                                                             # edge_index : torch.Size[32, 2, 702]
-                        
-#            x_ave = torch.mean(input=x, dim=2)
-#            for i in range(x.shape[2]):
-#                x[:,:,i] = x[:,:,i] / x_ave                        
+            x, labels, edge_index = [item.float().to(device) for item in [x, labels, edge_index]]               
 
             optimizer.zero_grad()
-            out_1, out_2 = model(x, edge_index)
-            out_2= out_2.float().to(device)
+            out = model(x, edge_index)
+            out = out.float().to(device)
 
-#            print('▼x', x.shape)
-#            print('▼edge_index', edge_index.shape)
-#            print('▼out_2', out_2.shape)
-#            print('▼labels', labels.shape)
-
-#            out_2 = out_2 * x_ave
-
-
-            t = pd.read_csv('./data/yfinance_8/true.csv')
+            dataset = config['comment']
+            t = pd.read_csv(f'./data/{dataset}/true.csv')
             t = torch.tensor(t.values, dtype=torch.int64).squeeze()
             true = torch.cat([t,t], 0)
-            for i in range(int(out_1.shape[0]/len(t))-2):
+            for i in range(int(out.shape[0]/len(t))-2):
                 true = torch.cat([true,t], 0)        
 
-
-#            loss = loss_func(out_2, labels)                  # MSE loss
-            CE_loss = CE_loss_func(out_1, true)
+            CE_loss = CE_loss_func(out, true)
             
             CE_loss.backward()
             optimizer.step()
-
             
             train_loss_list.append(CE_loss.item())              # loss値 を記録していく (39 * epoch数)
-            acu_loss += CE_loss.item()                          # loss値 の1epochあたりの和 (→平均化する)
+            sum_loss += CE_loss.item()                          # loss値 の1epochあたりの和 (→平均化する)
                 
             i += 1
 
-
-        # each epoch                                         # epoch ごとにloss値の平均を出力
-        print('epoch ({} / {}) (Loss:{:.8f}, ACU_loss:{:.8f})'.format(
-                        i_epoch, epoch, 
-                        acu_loss/len(dataloader), acu_loss), flush=True
-            )
+        print('epoch ({} / {}) (Loss:{:.8f})'.
+            format(i_epoch, epoch, sum_loss/len(dataloader)), flush=True)
 
         # use val dataset to judge
         if val_dataloader is not None:
 
-            val_loss, val_result, _ = test(model, val_dataloader)   # val_loss を出力
+            val_loss = test(model, val_dataloader, config)   # val_loss を出力
 
             if val_loss < min_loss:                              # val_loss の最小値が更新されなければ stop_improve_count +1 
                 torch.save(model.state_dict(), save_path)        #  → early_stop_win に到達したら break
@@ -131,10 +101,8 @@ def train(model = None, save_path = '', config={},  train_dataloader=None, val_d
                 break
 
         else:                                                    # ×
-            if acu_loss < min_loss :                             # ×
+            if sum_loss < min_loss :                             # ×
                 torch.save(model.state_dict(), save_path)        # ×
-                min_loss = acu_loss                              # ×
-
-
+                min_loss = sum_loss                              # ×
 
     return train_loss_list

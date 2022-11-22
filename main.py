@@ -43,10 +43,15 @@ class Main():
         self.datestr = None
 
         dataset = self.env_config['dataset']
-        train_orig = pd.read_csv(f'./data/{dataset}/train.csv', sep=',', index_col=0)
-        test_orig = pd.read_csv(f'./data/{dataset}/test.csv', sep=',', index_col=0)
+        train = pd.read_csv(f'./data/{dataset}/train.csv', sep=',', index_col=0)
+        test  = pd.read_csv(f'./data/{dataset}/test.csv', sep=',', index_col=0)
+        true  = pd.read_csv(f'./data/{dataset}/true.csv', sep=',')
+        x_non  = pd.read_csv(f'./data/{dataset}/x_non.csv', sep=',', index_col=0)
        
-        train, test = train_orig, test_orig
+#        train, test = train_orig, test_orig
+
+        print(train.shape, test.shape)
+        print(true.shape, x_non.shape)
 
         if 'attack' in train.columns:
             train = train.drop(columns=['attack'])

@@ -42,8 +42,8 @@ def train(model = None, save_path = '', config={},  train_dataloader=None, val_d
     epoch = config['epoch']
     early_stop_win = 15
 
-    print(model.state_dict()['embedding.weight'])
-    print(model.state_dict().keys())
+#    print(model.state_dict()['embedding.weight'])
+#    print(model.state_dict().keys())
     model.train()
 
     log_interval = 1000

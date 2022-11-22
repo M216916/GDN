@@ -81,7 +81,7 @@ class GDN(nn.Module):
         self.topk = topk                                      # 20
         self.learned_graph = None
 
-#        self.neural_network = Net(pl.LightningModule)
+        self.net = Net()
 
         self.cache_edge_index_sets = [None] * edge_set_num    # [None]
         self.cache_embed_index = None                         # None
@@ -162,8 +162,7 @@ class GDN(nn.Module):
 
         out = torch.cat([out, x_non], dim=2)
         out = out.view(out.shape[0]*out.shape[1], out.shape[2])
-        
-        net = Net()
-        out = net.forward(out)               # NN の出力 [320, 3]
+
+        out = self.net(out)
 
         return out

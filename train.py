@@ -42,8 +42,13 @@ def train(model = None, save_path = '', config={},  train_dataloader=None, val_d
     epoch = config['epoch']
     early_stop_win = 15
 
-#    print(model.state_dict()['embedding.weight'])
-#    print(model.state_dict().keys())
+    load_path = '/home/inaba/GDN_7/pretrained/yfinance_8/best_11|24-18:19:13.pt'
+    load_weights = torch.load(load_path)
+
+    model.embedding.weight = nn.Parameter(load_weights['embedding.weight'])
+
+
+
     model.train()
 
     log_interval = 1000
@@ -56,21 +61,18 @@ def train(model = None, save_path = '', config={},  train_dataloader=None, val_d
         sum_loss = 0
         model.train()
 
-        for x, labels, attack_labels, edge_index in dataloader:
+
+        for i, (x, labels, attack_labels, edge_index, x_non, true) in enumerate (dataloader):
             _start = time.time()
 
-            x, labels, edge_index = [item.float().to(device) for item in [x, labels, edge_index]]               
+            x, labels, edge_index, x_non, true = [item.float().to(device) for item in [x, labels, edge_index, x_non, true]]
 
             optimizer.zero_grad()
-            out = model(x, edge_index)
+            out = model(x, edge_index, x_non)
             out = out.float().to(device)
 
-            dataset = config['comment']
-            t = pd.read_csv(f'./data/{dataset}/true.csv')
-            t = torch.tensor(t.values, dtype=torch.int64).squeeze()
-            true = torch.cat([t,t], 0)
-            for i in range(int(out.shape[0]/len(t))-2):
-                true = torch.cat([true,t], 0)        
+            true = true.to(torch.int64)
+            true = true.view(-1)            
 
             CE_loss = CE_loss_func(out, true)
             

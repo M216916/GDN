@@ -7,12 +7,14 @@ import numpy as np
 
 
 class TimeDataset(Dataset):
-    def __init__(self, raw_data, edge_index, mode='train', config = None):
+    def __init__(self, raw_data, edge_index, mode='train', config = None, x_non = None, true = None):
         
         self.raw_data = raw_data             # train : 28 list × 1565 ／ test : 28 list × 2049
         self.config = config                 # { slide_win : 5, slide_stride : 1}
         self.edge_index = edge_index         # tensor[[ 1,  2,  3,  ..., 23, 24, 25], [ 0,  0,  0,  ..., 26, 26, 26]] ... (2, 702)
         self.mode = mode                     # train ／ test
+        self.x_non = x_non
+        self.true = true
 
         x_data = raw_data[:-1]               # train : 27 list × 1565 ／ test : 27 list × 2049
         labels = raw_data[-1]                # train : 1565 (0 or 1)  ／ test : 2049  (0.0 or 1.0)
@@ -24,7 +26,8 @@ class TimeDataset(Dataset):
         labels = torch.tensor(labels).double()  # torch.Size[ 1, 1565]   ／ torch.Size[ 1, 2049]
 
         self.x, self.y, self.labels = self.process(data, labels)
-    
+
+
     def __len__(self):
         return len(self.x)
 
@@ -60,6 +63,7 @@ class TimeDataset(Dataset):
         
         return x, y, labels
 
+
     def __getitem__(self, idx):
 
         feature = self.x[idx].double()
@@ -69,7 +73,10 @@ class TimeDataset(Dataset):
 
         label = self.labels[idx].double()
 
-        return feature, y, label, edge_index
+        x_non = torch.t(torch.tensor(self.x_non.values, dtype=torch.float64))
+        true = torch.tensor(self.true.values, dtype=torch.int64).squeeze()
+
+        return feature, y, label, edge_index, x_non, true
 
 
 

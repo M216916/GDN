@@ -43,15 +43,10 @@ class Main():
         self.datestr = None
 
         dataset = self.env_config['dataset']
-        train = pd.read_csv(f'./data/{dataset}/train.csv', sep=',', index_col=0)
-        test  = pd.read_csv(f'./data/{dataset}/test.csv', sep=',', index_col=0)
-        true  = pd.read_csv(f'./data/{dataset}/true.csv', sep=',')
+        train = pd.read_csv(f'./data/{dataset}/train.csv',  sep=',', index_col=0)
+        test  = pd.read_csv(f'./data/{dataset}/test.csv',   sep=',', index_col=0)
+        true  = pd.read_csv(f'./data/{dataset}/true.csv',   sep=',', index_col=0)
         x_non  = pd.read_csv(f'./data/{dataset}/x_non.csv', sep=',', index_col=0)
-       
-#        train, test = train_orig, test_orig
-
-        print(train.shape, test.shape)
-        print(true.shape, x_non.shape)
 
         if 'attack' in train.columns:
             train = train.drop(columns=['attack'])
@@ -72,10 +67,11 @@ class Main():
         cfg = {'slide_win': train_config['slide_win'], 
                'slide_stride': train_config['slide_stride'],}
 
-        train_dataset = TimeDataset(train_dataset_indata, fc_edge_index, mode='train', config=cfg)    
-        test_dataset = TimeDataset(test_dataset_indata, fc_edge_index, mode='test', config=cfg)
+        train_dataset = TimeDataset(train_dataset_indata, fc_edge_index, mode='train', config=cfg, x_non=x_non, true=true)
+        test_dataset = TimeDataset(test_dataset_indata, fc_edge_index, mode='test', config=cfg, x_non=x_non, true=true)
 
-        train_dataloader, val_dataloader = self.get_loaders(train_dataset, train_config['seed'], train_config['batch'], val_ratio = train_config['val_ratio'])
+        train_dataloader, val_dataloader = self.get_loaders(
+            train_dataset, train_config['seed'], train_config['batch'], val_ratio = train_config['val_ratio'])
 
         self.train_dataset = train_dataset
         self.test_dataset = test_dataset
@@ -114,14 +110,15 @@ class Main():
                 test_dataset=self.test_dataset,                             # datasets.TimeDataset.TimeDataset object
                 train_dataset=self.train_dataset,                           # datasets.TimeDataset.TimeDataset object
                 dataset_name=self.env_config['dataset'] )
-        
+
+        '''
         # test            
         self.model.load_state_dict(torch.load(model_save_path))
         best_model = self.model.to(self.device)
 
         _ = test(best_model, self.test_dataloader, train_config)
         _ = test(best_model, self.val_dataloader, train_config)
-
+        '''
 
 
     def get_loaders(self, train_dataset, seed, batch, val_ratio=0.1):
@@ -129,7 +126,7 @@ class Main():
         train_use_len = int(dataset_len * (1 - val_ratio))                  # 1248
         val_use_len = int(dataset_len * val_ratio)                          # 312
         val_start_index = random.randrange(train_use_len)                   # 523
-        indices = torch.arange(dataset_len)                                 
+        indices = torch.arange(dataset_len)
 
         train_sub_indices = torch.cat([indices[:val_start_index], indices[val_start_index+val_use_len:]])
         train_subset = Subset(train_dataset, train_sub_indices)

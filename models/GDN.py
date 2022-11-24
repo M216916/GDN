@@ -94,7 +94,7 @@ class GDN(nn.Module):
         nn.init.kaiming_uniform_(self.embedding.weight, a=math.sqrt(5))
 
 
-    def forward(self, data, org_edge_index):
+    def forward(self, data, org_edge_index, x_non):
 
         x = data.clone().detach()
         edge_index_sets = self.edge_index_sets
@@ -149,20 +149,8 @@ class GDN(nn.Module):
         out = F.relu(self.bn_outlayer_in(out))              # torch.Size[32, 64, 27]     # Batch Normalization
         out = out.permute(0,2,1)                            # torch.Size[32, 27, 64]     # 要素入れ替え
         out = self.dp(out)                                  # torch.Size[32, 27, 64]     # drop out でニューロンを調整(過学習抑制)
-
-        dataset = self.config['comment']
-
-        x_non = pd.read_csv(f'./data/{dataset}/x_non.csv')
-        x_non = torch.tensor(x_non.values, dtype=torch.int64)
-        x_non = torch.t(x_non[:,1:]).float()
-        x_non_list = []
-        for i in range(out.shape[0]):
-            x_non_list.append(x_non)
-        x_non = torch.stack(x_non_list)
-
         out = torch.cat([out, x_non], dim=2)
         out = out.view(out.shape[0]*out.shape[1], out.shape[2])
-
         out = self.net(out)
 
         return out

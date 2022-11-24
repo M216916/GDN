@@ -33,19 +33,15 @@ def test(model, dataloader, config):
 
     i = 0
     acu_loss = 0
-    for x, y, labels, edge_index in dataloader:
-        x, y, labels, edge_index = [item.to(device).float() for item in [x, y, labels, edge_index]] 
+    for x, y, labels, edge_index, x_non, true in dataloader:
+        x, y, labels, edge_index, x_non, true = [item.to(device).float() for item in [x, y, labels, edge_index, x_non, true]] 
                         
         with torch.no_grad():
-            out = model(x, edge_index)
+            out = model(x, edge_index, x_non)
             out = out.float().to(device)
 
-            dataset = config['comment']
-            t = pd.read_csv(f'./data/{dataset}/true.csv')
-            t = torch.tensor(t.values, dtype=torch.int64).squeeze()
-            true = torch.cat([t,t], 0)
-            for i in range(int(out.shape[0]/len(t))-2):
-                true = torch.cat([true,t], 0)  
+            true = true.to(torch.int64)
+            true = true.view(-1)  
 
             CE_loss = CE_loss_func(out, true)
         

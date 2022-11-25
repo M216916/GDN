@@ -43,8 +43,7 @@ class Main():
         self.datestr = None
 
         dataset = self.env_config['dataset']
-        train = pd.read_csv(f'./data/{dataset}/train.csv',  sep=',', index_col=0)
-        test  = pd.read_csv(f'./data/{dataset}/test.csv',   sep=',', index_col=0)
+        train = pd.read_csv(f'./data/{dataset}/test.csv',  sep=',', index_col=0)  # test.csv → 学習用
         true  = pd.read_csv(f'./data/{dataset}/true.csv',   sep=',', index_col=0)
         x_non  = pd.read_csv(f'./data/{dataset}/x_non.csv', sep=',', index_col=0)
 
@@ -62,24 +61,21 @@ class Main():
         self.feature_map = feature_map
 
         train_dataset_indata = construct_data(train, feature_map, labels=0)
-        test_dataset_indata = construct_data(test, feature_map, labels=test.attack.tolist())
 
         cfg = {'slide_win': train_config['slide_win'], 
                'slide_stride': train_config['slide_stride'],}
 
         train_dataset = TimeDataset(train_dataset_indata, fc_edge_index, mode='train', config=cfg, x_non=x_non, true=true)
-        test_dataset = TimeDataset(test_dataset_indata, fc_edge_index, mode='test', config=cfg, x_non=x_non, true=true)
 
         train_dataloader, val_dataloader = self.get_loaders(
             train_dataset, train_config['seed'], train_config['batch'], val_ratio = train_config['val_ratio'])
 
         self.train_dataset = train_dataset
-        self.test_dataset = test_dataset
+        self.test_dataset = None
 
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
-        self.test_dataloader = DataLoader(test_dataset, batch_size=train_config['batch'],
-                            shuffle=False, num_workers=0)
+        self.test_dataloader = None
 
         edge_index_sets = []
         edge_index_sets.append(fc_edge_index)
